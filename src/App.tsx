@@ -94,7 +94,14 @@ export default function App() {
         body: formData,
       });
 
-      const data = await response.json();
+      let data;
+      try {
+        data = await response.json();
+      } catch (e) {
+        const text = await response.text();
+        console.error("Non-JSON API response:", text);
+        throw new Error(`Server returned an invalid response (not JSON): ${text.substring(0, 50)}...`);
+      }
 
       if (!response.ok) {
         throw new Error(data.error || 'Failed to process video.');

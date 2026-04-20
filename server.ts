@@ -5,6 +5,7 @@ import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
 import axios from 'axios';
+import ytdl from '@distube/ytdl-core';
 import { v4 as uuidv4 } from 'uuid';
 import { GoogleGenAI } from '@google/genai';
 
@@ -45,30 +46,46 @@ async function startServer() {
       if (file) {
         localFilePath = file.path;
       } else if (videoUrl) {
-        // Download video from URL
         localFilePath = path.join(tmpDir, `${uuidv4()}.mp4`);
         isFileDownloaded = true;
         const writer = fs.createWriteStream(localFilePath);
-        const response = await axios({
-          url: videoUrl,
-          method: 'GET',
-          responseType: 'stream',
-        });
-        
-        response.data.pipe(writer);
-        await new Promise((resolve, reject) => {
-          writer.on('finish', () => resolve(true));
-          writer.on('error', reject);
-        });
+
+        if (ytdl.validateURL(videoUrl)) {
+          // Download YouTube video
+          console.log(`Downloading YouTube video from: ${videoUrl}`);
+          const stream = ytdl(videoUrl, { filter: 'audioonly' }); // Use audioonly to be faster
+          stream.pipe(writer);
+          await new Promise((resolve, reject) => {
+            writer.on('finish', resolve);
+            stream.on('error', reject);
+            writer.on('error', reject);
+          });
+        } else {
+          // Download raw video file from URL
+          console.log(`Downloading raw video from: ${videoUrl}`);
+          const response = await axios({
+            url: videoUrl,
+            method: 'GET',
+            responseType: 'stream',
+          });
+          
+          response.data.pipe(writer);
+          await new Promise((resolve, reject) => {
+            writer.on('finish', resolve);
+            writer.on('error', reject);
+          });
+        }
       }
 
       console.log(`Uploading file to Gemini: ${localFilePath}`);
+
+      const mimeTypeFallback = (videoUrl && ytdl.validateURL(videoUrl)) ? 'audio/mpeg' : 'video/mp4';
 
       // Upload file to Gemini
       const uploadResponse = await ai.files.upload({
         file: localFilePath,
         config: {
-          mimeType: file ? file.mimetype : 'video/mp4',
+          mimeType: file ? file.mimetype : mimeTypeFallback,
         }
       });
 
