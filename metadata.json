@@ -1,0 +1,5 @@
+{
+  "name": "Myanmar Video Transcriber",
+  "description": "Upload a video or paste a link to accurately transcribe and translate the audio into Myanmar (Burmese) language.",
+  "requestFramePermissions": []
+}
